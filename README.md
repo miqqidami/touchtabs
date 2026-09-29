@@ -60,25 +60,37 @@ another Chromium browser: Edge, Brave, Opera, Vivaldi, Arc).
 
 ### 1. Install the helper
 
+**Download:** get `TouchTabs.zip` from the
+[latest release](https://github.com/miqqidami/touchtabs/releases/latest), unzip
+it, move `TouchTabs.app` to Applications and open it once. It's ad-hoc signed,
+so macOS may block it the first time: open **System Settings → Privacy &
+Security** and click **Open Anyway**. A dialog confirms it's registered with
+your browsers.
+
+**Or build it:**
+
 ```sh
 git clone https://github.com/miqqidami/touchtabs.git
 cd touchtabs
 make install        # builds TouchTabs.app into /Applications and registers it with your browsers
 ```
 
-This needs the Xcode command line tools (Swift 5.9+). With a prebuilt
-`TouchTabs.app`, open it once instead (right-click → **Open** the first time,
-since it's ad-hoc signed). Either way, TouchTabs registers itself as a
-native messaging host with every Chromium browser it finds. Keep the app where
-you installed it, because the browser starts it from there.
+This needs the Xcode command line tools (Swift 5.9+).
 
-### 2. Load the extension
+Either way, TouchTabs registers itself as a native messaging host with every
+Chromium browser it finds. Keep the app where you installed it, because the
+browser starts it from there.
+
+### 2. Add the extension
+
+Install TouchTabs from the Chrome Web Store (link coming once it's approved),
+or load it unpacked:
 
 1. Open `chrome://extensions` and turn on **Developer mode**.
 2. Click **Load unpacked** and select the `extension/` folder.
-3. Switch to Chrome. Your tabs appear on the Touch Bar.
 
-The toolbar button's tooltip shows whether it's connected.
+Switch to Chrome. Your tabs appear on the Touch Bar, and the toolbar button's
+tooltip shows whether it's connected.
 
 ## Settings
 
@@ -110,6 +122,9 @@ run `TouchTabs --install` again):
 
 ## Privacy and security
 
+See [PRIVACY.md](PRIVACY.md) for the full policy.
+
+
 - Tab titles and URLs go only from your browser to the helper, over the pipes
   Chrome sets up between them. Nothing leaves your Mac, and neither part makes
   a network request of its own.
@@ -138,7 +153,14 @@ make preview    # re-render docs/preview.png offscreen
 make icons      # re-render the extension icons from the vector artwork
 make app && scripts/e2e-test.py   # headless Chrome + real helper + Touch Bar screenshots
 make extension-zip
+make release    # build/TouchTabs.zip for a GitHub Release
+make store      # Chrome Web Store upload + listing images; see docs/store/LISTING.md
 ```
+
+The original version, a menu bar app that talked to the extension over a
+localhost WebSocket, is kept on the
+[`menubar-app`](https://github.com/miqqidami/touchtabs/tree/menubar-app)
+branch (tag `v1.0.0`).
 
 Code map:
 

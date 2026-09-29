@@ -88,6 +88,10 @@ enum PreviewRenderer {
         return png(size: size, scale: 1) { Artwork.drawAppIcon(in: CGRect(origin: .zero, size: size)) }
     }
 
+    static func writePNG(size: NSSize, scale: CGFloat, to path: String, draw: () -> Void) {
+        write(png(size: size, scale: scale, draw: draw), to: path)
+    }
+
     private static func png(size: NSSize, scale: CGFloat, draw: () -> Void) -> Data {
         let rep = NSBitmapImageRep(bitmapDataPlanes: nil,
                                    pixelsWide: Int(size.width * scale), pixelsHigh: Int(size.height * scale),

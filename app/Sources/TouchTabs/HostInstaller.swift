@@ -7,6 +7,9 @@ enum HostInstaller {
     static let hostName = "io.github.miqqidami.touchtabs"
     /// ID of the extension in `extension/`, pinned by the `key` in its manifest.
     static let extensionID = "dogooidoflnmlpknaaiaeblffcechdji"
+    /// IDs the Chrome Web Store assigned to published builds. The store strips
+    /// the manifest `key`, so a store install gets its own ID; add it here.
+    static let storeExtensionIDs: [String] = []
 
     /// Browser name → user data directory under ~/Library/Application Support.
     private static let browsers: [(name: String, directory: String)] = [
@@ -61,7 +64,7 @@ enum HostInstaller {
             "description": "Shows your browser tabs on the Touch Bar",
             "path": executable,
             "type": "stdio",
-            "allowed_origins": ([extensionID] + extra).map { "chrome-extension://\($0)/" },
+            "allowed_origins": ([extensionID] + storeExtensionIDs + extra).map { "chrome-extension://\($0)/" },
         ]
         return try JSONSerialization.data(withJSONObject: manifest, options: [.prettyPrinted, .sortedKeys])
     }

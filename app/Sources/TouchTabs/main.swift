@@ -13,6 +13,10 @@ if let flag = arguments.firstIndex(of: "--render-icons"), flag + 1 < arguments.c
     PreviewRenderer.renderIcons(to: arguments[flag + 1])
     exit(0)
 }
+if let flag = arguments.firstIndex(of: "--render-store"), flag + 1 < arguments.count {
+    StoreArtwork.render(to: arguments[flag + 1])
+    exit(0)
+}
 if arguments.contains("--install") || arguments.contains("--uninstall") {
     exit(HostInstaller.runFromCommandLine(arguments))
 }
