@@ -6,7 +6,7 @@
 const HOST = 'io.github.miqqidami.touchtabs';
 const PROTOCOL_VERSION = 2;
 const FAVICON_SIZE = 32;
-const DEFAULT_SETTINGS = { keepControlStrip: false, alwaysShow: false };
+const DEFAULT_SETTINGS = { enabled: true, keepControlStrip: false, alwaysShow: false };
 
 let port = null;
 let hostReady = false;
@@ -34,6 +34,7 @@ function connect() {
       hostReady = true;
       lastError = null;
       retryDelay = 1000;
+      updateButton();
       return;
     }
     handleCommand(message);
@@ -42,6 +43,7 @@ function connect() {
     lastError = chrome.runtime.lastError?.message ?? 'Disconnected';
     if (port === p) port = null;
     hostReady = false;
+    updateButton();
     // Helper not installed, or it quit: retry with backoff while we're awake;
     // the alarm below covers us after the service worker sleeps.
     retryTimer = setTimeout(connect, retryDelay);
@@ -66,6 +68,39 @@ function send(message) {
 async function sendSettings() {
   const settings = await chrome.storage.local.get(DEFAULT_SETTINGS);
   send({ type: 'settings', ...settings });
+}
+
+// ---------------------------------------------------------------------------
+// Toolbar button (and its keyboard shortcut): shows or hides the tabs on the
+// Touch Bar directly, with no popup. Settings live on the options page.
+
+async function toggleDisplay() {
+  if (lastError && !hostReady) {
+    // The helper isn't running; the options page explains how to set it up.
+    chrome.runtime.openOptionsPage();
+    return;
+  }
+  const { enabled } = await chrome.storage.local.get(DEFAULT_SETTINGS);
+  await chrome.storage.local.set({ enabled: !enabled }); // onChanged tells the helper
+}
+
+async function updateButton() {
+  const { enabled } = await chrome.storage.local.get(DEFAULT_SETTINGS);
+  const broken = lastError && !hostReady;
+  let title, badge = '', color = '#5F6368';
+  if (broken) {
+    title = 'TouchTabs isn\'t connected. Click for setup.';
+    badge = '!';
+    color = '#F28B82';
+  } else if (enabled) {
+    title = 'TouchTabs: your tabs are on the Touch Bar. Click to hide them.';
+  } else {
+    title = 'TouchTabs: hidden. Click to show your tabs on the Touch Bar.';
+    badge = 'off';
+  }
+  await chrome.action.setTitle({ title });
+  await chrome.action.setBadgeBackgroundColor({ color });
+  await chrome.action.setBadgeText({ text: badge });
 }
 
 function browserBrand() {
@@ -266,13 +301,18 @@ chrome.windows.onFocusChanged.addListener((windowId) => {
 });
 
 chrome.storage.onChanged.addListener((_changes, area) => {
-  if (area === 'local') sendSettings();
+  if (area !== 'local') return;
+  sendSettings();
+  updateButton();
 });
 
-// Popup status.
+chrome.action.onClicked.addListener(toggleDisplay);
+
+// Options page status.
 chrome.runtime.onMessage.addListener((message, _sender, reply) => {
   if (message?.type === 'status') {
     if (!isOpen()) connect();
+updateButton();
     reply({ connected: hostReady, error: hostReady ? null : lastError });
   }
 });
@@ -281,7 +321,9 @@ chrome.runtime.onMessage.addListener((message, _sender, reply) => {
 chrome.alarms.create('reconnect', { periodInMinutes: 0.5 });
 chrome.alarms.onAlarm.addListener((alarm) => {
   if (alarm.name === 'reconnect') connect();
+updateButton();
 });
 chrome.runtime.onStartup.addListener(connect);
 chrome.runtime.onInstalled.addListener(connect);
 connect();
+updateButton();

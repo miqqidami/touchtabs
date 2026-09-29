@@ -24,14 +24,16 @@
   <main>
     <h1><img src="icons/icon32.png" alt="">TouchTabs</h1>
     <div class="status" id="status"><span class="dot"></span><span id="label">Checking…</span></div>
-    <p id="help" hidden>Open <b>TouchTabs.app</b> once to finish setup, then reopen this popup.
+    <p id="help" hidden>Open <b>TouchTabs.app</b> once to finish setup.
       <a href="https://github.com/miqqidami/touchtabs#install" target="_blank">Get the app</a></p>
     <hr>
+    <label><input type="checkbox" id="enabled">
+      <span>Show tabs on the Touch Bar<small>The TouchTabs toolbar button and ⌥⇧T turn this on and off.</small></span></label>
     <label><input type="checkbox" id="keepControlStrip">
       <span>Keep Control Strip visible<small>Brightness and volume stay next to your tabs; macOS adds a ✕ on the left.</small></span></label>
     <label><input type="checkbox" id="alwaysShow">
       <span>Show over all apps<small>Keep your tabs on the Touch Bar even when the browser isn't in front.</small></span></label>
   </main>
-  <script src="popup.js"></script>
+  <script src="options.js"></script>
 </body>
 </html>

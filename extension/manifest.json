@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "TouchTabs",
-  "version": "1.1.0",
+  "version": "1.2.0",
   "description": "Shows your tab strip on the MacBook Pro Touch Bar. Requires the TouchTabs helper app.",
   "homepage_url": "https://github.com/miqqidami/touchtabs",
   "minimum_chrome_version": "116",
@@ -18,12 +18,23 @@
     "service_worker": "background.js"
   },
   "action": {
-    "default_title": "TouchTabs",
-    "default_popup": "popup.html",
+    "default_title": "TouchTabs: click to show or hide your tabs on the Touch Bar",
     "default_icon": {
       "16": "icons/icon16.png",
       "32": "icons/icon32.png"
     }
+  },
+  "commands": {
+    "_execute_action": {
+      "suggested_key": {
+        "default": "Alt+Shift+T"
+      },
+      "description": "Show or hide your tabs on the Touch Bar"
+    }
+  },
+  "options_ui": {
+    "page": "options.html",
+    "open_in_tab": false
   },
   "icons": {
     "16": "icons/icon16.png",

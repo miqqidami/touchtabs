@@ -71,6 +71,15 @@ try:
     time.sleep(1.5)
     print('tabs after close+new:', ev('chrome.tabs.query({}).then(ts => ts.map(t => t.title))'))
     subprocess.run(['screencapture', '-b', TMP + '/e2e2.png'])
+    # Toolbar button / shortcut: hides, then shows, the tabs on the Touch Bar.
+    ev('toggleDisplay()')
+    time.sleep(1.5)
+    print('after toolbar click:', ev('chrome.storage.local.get("enabled")'))
+    subprocess.run(['screencapture', '-b', TMP + '/e2e3.png'])
+    ev('toggleDisplay()')
+    time.sleep(1.5)
+    print('after second click:', ev('chrome.storage.local.get("enabled")'))
+    subprocess.run(['screencapture', '-b', TMP + '/e2e4.png'])
 finally:
     proc.terminate(); proc.wait(10)
-    print('Touch Bar screenshots:', TMP + '/e2e1.png', TMP + '/e2e2.png')
+    print('Touch Bar screenshots in', TMP)

@@ -20,7 +20,7 @@ be extended without breaking the other.
 | type | fields | when |
 | --- | --- | --- |
 | `hello` | `protocol` (2), `browser` (brand from `navigator.userAgentData`, e.g. `"Google Chrome"`, `"Brave"`), `version` | right after connecting |
-| `settings` | `keepControlStrip` (bool), `alwaysShow` (bool) | after connecting and whenever they change in the popup |
+| `settings` | `enabled` (bool, the toolbar button), `keepControlStrip` (bool), `alwaysShow` (bool) | after connecting and whenever they change |
 | `state` | `focused` (bool), `window` (object or `null`) | whenever the last-focused normal window's tab strip changes (debounced ~25 ms) |
 | `favicon` | `key`, `data` (`data:` URL) | once per favicon per connection |
 

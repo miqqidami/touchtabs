@@ -18,6 +18,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var brand = "Chromium"
     private var window: WindowState?
     private var favicons: [String: NSImage] = [:]
+    private var enabled = true
     private var alwaysShow = false
     private var hiddenByUser = false
     private var ownsFocus = false
@@ -87,6 +88,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             refresh()
         case "settings":
             guard let settings = try? decoder.decode(Incoming.Settings.self, from: data) else { return }
+            enabled = settings.enabled ?? true
             alwaysShow = settings.alwaysShow
             touchBar.keepsControlStrip = settings.keepControlStrip
             refresh()
@@ -154,7 +156,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         let expected = Browsers.brand(for: frontmost)
         let isOurBrowser = Browsers.isBrowser(frontmost)
             && (expected == nil || expected == brand || !Browsers.knownBrands.contains(brand))
-        let wanted = isDemo || ((alwaysShow || isOurBrowser) && yieldedTo == nil)
+        let wanted = isDemo || (enabled && (alwaysShow || isOurBrowser) && yieldedTo == nil)
         touchBar.setTrayVisible(wanted)
 
         let state = isDemo ? DemoData.window : window

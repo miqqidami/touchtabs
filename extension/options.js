@@ -1,4 +1,4 @@
-const DEFAULT_SETTINGS = { keepControlStrip: false, alwaysShow: false };
+const DEFAULT_SETTINGS = { enabled: true, keepControlStrip: false, alwaysShow: false };
 
 const status = document.getElementById('status');
 const label = document.getElementById('label');

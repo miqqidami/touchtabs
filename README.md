@@ -78,18 +78,24 @@ you installed it, because the browser starts it from there.
 2. Click **Load unpacked** and select the `extension/` folder.
 3. Switch to Chrome. Your tabs appear on the Touch Bar.
 
-The extension's popup shows whether it's connected.
+The toolbar button's tooltip shows whether it's connected.
 
 ## Settings
 
-Both settings are in the extension's popup:
+- **Toolbar button / ⌥⇧T**: click the TouchTabs button in Chrome's toolbar (or
+  press Option-Shift-T) to show or hide your tabs on the Touch Bar. While
+  they're hidden, Chrome's own Touch Bar is back and the button shows an
+  **off** badge. Change the shortcut at `chrome://extensions/shortcuts`.
+- **Options** (right-click the toolbar button → Options): connection status,
+  the same on/off switch, and:
+  - **Keep Control Strip visible**: by default TouchTabs uses the whole Touch
+    Bar while the browser is in front, which hides brightness and volume. Turn
+    this on to keep them next to your tabs. macOS then adds a ✕ on the left.
+  - **Show over all apps**: keep your tabs on the Touch Bar even when the
+    browser isn't in front.
 
-- **Keep Control Strip visible**: by default TouchTabs uses the whole Touch Bar
-  while the browser is in front, which hides brightness and volume. Turn this on
-  to keep them next to your tabs. macOS then adds a ✕ on the left, and a
-  TouchTabs button in the Control Strip switches back to Chrome's own Touch Bar.
-- **Show over all apps**: keep your tabs on the Touch Bar even when the browser
-  isn't in front.
+If the button shows a red **!**, the helper isn't installed. Click the button
+for setup help.
 
 With several browsers or profiles running, each starts its own helper. The
 helpers coordinate so that the most recently focused window is the one you see.
@@ -111,7 +117,7 @@ run `TouchTabs --install` again):
   start it. That extension's ID is pinned by the `key` in
   `extension/manifest.json`.
 - The extension asks for `tabs` (titles/URLs), `tabGroups`, `favicon`,
-  `nativeMessaging`, `storage` (the two settings) and `alarms` (to reconnect
+  `nativeMessaging`, `storage` (the settings) and `alarms` (to reconnect
   if the helper is installed after the browser starts). It needs no host
   permissions.
 

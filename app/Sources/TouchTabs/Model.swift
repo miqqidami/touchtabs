@@ -46,6 +46,8 @@ enum Incoming {
     }
 
     struct Settings: Decodable {
+        /// Toggled by the extension's toolbar button; missing from older extensions.
+        let enabled: Bool?
         let keepControlStrip: Bool
         let alwaysShow: Bool
     }
