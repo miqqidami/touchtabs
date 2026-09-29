@@ -14,20 +14,25 @@ final class TouchBarController: NSObject, NSTouchBarDelegate {
     var keepsControlStrip = false {
         didSet {
             guard keepsControlStrip != oldValue, isPresented else { return }
-            SystemTouchBar.dismiss(touchBar)
+            // Our own dismissal: clear the flag first so it isn't taken for the user's.
             isPresented = false
+            SystemTouchBar.dismiss(touchBar)
+            // A fresh bar makes the system lay the strip out for the new placement.
+            touchBar = makeTouchBar()
             present()
         }
     }
     private(set) var isPresented = false
     private var isTrayVisible = false
 
-    private lazy var touchBar: NSTouchBar = {
+    private lazy var touchBar = makeTouchBar()
+
+    private func makeTouchBar() -> NSTouchBar {
         let bar = NSTouchBar()
         bar.delegate = self
         bar.defaultItemIdentifiers = [Self.stripIdentifier]
         return bar
-    }()
+    }
 
     private lazy var trayItem: NSCustomTouchBarItem = {
         let item = NSCustomTouchBarItem(identifier: Self.trayIdentifier)
@@ -38,10 +43,14 @@ final class TouchBarController: NSObject, NSTouchBarDelegate {
 
     func install() {
         stripView.onDetach = { [weak self] in
-            // If we still think it's up, the system dismissed it, not us.
-            guard let self, self.isPresented else { return }
-            self.isPresented = false
-            if self.keepsControlStrip { self.onUserDismiss?() }
+            // The strip also detaches briefly when we re-present it, so only a
+            // strip that's still off the bar once things settle means the
+            // system (the user's close box) dismissed it.
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
+                guard let self, self.isPresented, self.stripView.window == nil else { return }
+                self.isPresented = false
+                if self.keepsControlStrip { self.onUserDismiss?() }
+            }
         }
         SystemTouchBar.setShowsCloseBoxWhenFrontmost(false)
         SystemTouchBar.addSystemTrayItem(trayItem)

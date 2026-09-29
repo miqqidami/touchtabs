@@ -111,11 +111,14 @@ final class TabStripView: NSView {
         return constraint
     }()
 
+    private var windowResizeObserver: NSObjectProtocol?
+
     /// Pins the width to the room the Touch Bar actually gives us. Without an
     /// explicit width the item is laid out at full size and clipped by the
     /// Control Strip, so measure from our origin to the edge of the bar.
+    /// Starts from the full width each time so a wider layout can grow into it.
     func fitToTouchBar() {
-        _ = widthConstraint
+        widthConstraint.constant = 1085
         needsLayout = true
     }
 
@@ -130,7 +133,17 @@ final class TabStripView: NSView {
 
     override func viewDidMoveToWindow() {
         super.viewDidMoveToWindow()
-        if window == nil { onDetach?() }
+        if let windowResizeObserver { NotificationCenter.default.removeObserver(windowResizeObserver) }
+        windowResizeObserver = nil
+        guard let window else {
+            onDetach?()
+            return
+        }
+        // The room changes when the Control Strip is shown, hidden or expanded.
+        windowResizeObserver = NotificationCenter.default.addObserver(
+            forName: NSWindow.didResizeNotification, object: window, queue: .main
+        ) { [weak self] _ in self?.fitToTouchBar() }
+        fitToTouchBar()
     }
 
     override func setFrameSize(_ newSize: NSSize) {
