@@ -1,0 +1,17 @@
+{
+  "manifest_version": 3,
+  "name": "TouchTabs",
+  "version": "1.0.0",
+  "description": "Shows your tab strip on the MacBook Pro Touch Bar. Requires the free TouchTabs macOS app.",
+  "homepage_url": "https://github.com/miqqidami/touchtabs",
+  "minimum_chrome_version": "116",
+  "key": "MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEA70rRhPYXXD7XK8eW7mK2fBfNUjZc5ZcbwOSHaBYglxjdll4SzNQMo1+q8/9aB/BLGhMJjN20Ngw6KOVBsDj6pf7q7JUmtkTBEKbOzc9O2NradOMIbpBe3I2kFdDwjZSbZxsa5Xk0EeaY5z/Py8h7ZcDzfIXMwK4ZKcuSFqdgRvKjjQQYvKPllURGdyYyA1b6mwt8kVorNZpcowUXnMYQTQaZ5aV9uhhxoPnD8yuBmmraQclLFz/Yvp+eJpYLTDaWkylDschfNsQTdTupNc0M6YTZO9BEGAHUu4e/Gyfv11VNXzoP15BZc+Lco0+jL2V0n5VciVjxKuHH+9Cfr/oOpQIDAQAB",
+  "permissions": ["tabs", "tabGroups", "favicon", "alarms"],
+  "background": { "service_worker": "background.js" },
+  "action": {
+    "default_title": "TouchTabs",
+    "default_popup": "popup.html",
+    "default_icon": { "16": "icons/icon16.png", "32": "icons/icon32.png" }
+  },
+  "icons": { "16": "icons/icon16.png", "32": "icons/icon32.png", "48": "icons/icon48.png", "128": "icons/icon128.png" }
+}

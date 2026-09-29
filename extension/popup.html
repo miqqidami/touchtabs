@@ -1,0 +1,28 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <style>
+    :root { color-scheme: light dark; }
+    body { margin: 0; width: 260px; font: 13px system-ui, sans-serif; background: #202124; color: #e8eaed; }
+    main { padding: 14px 16px; }
+    h1 { font-size: 14px; margin: 0 0 10px; display: flex; align-items: center; gap: 8px; }
+    h1 img { width: 20px; height: 20px; }
+    .status { display: flex; align-items: center; gap: 8px; }
+    .dot { width: 8px; height: 8px; border-radius: 50%; background: #9aa0a6; flex: none; }
+    .ok .dot { background: #81c995; }
+    .off .dot { background: #f28b82; }
+    p { color: #bdc1c6; margin: 10px 0 0; line-height: 1.4; }
+    a { color: #8ab4f8; }
+  </style>
+</head>
+<body>
+  <main>
+    <h1><img src="icons/icon32.png" alt="">TouchTabs</h1>
+    <div class="status" id="status"><span class="dot"></span><span id="label">Checking…</span></div>
+    <p id="help" hidden>Start the TouchTabs app on your Mac. It connects automatically.
+      <a href="https://github.com/miqqidami/touchtabs#install" target="_blank">Get the app</a></p>
+  </main>
+  <script src="popup.js"></script>
+</body>
+</html>
