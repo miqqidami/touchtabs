@@ -1,99 +1,100 @@
 import AppKit
-import ServiceManagement
 
-/// State reported by one connected extension instance.
-final class BrowserSession {
-    let client: BridgeClient
-    var brand = "Chromium"
-    var window: WindowState?
-    var favicons: [String: NSImage] = [:]
-    var lastFocused = Date.distantPast
+/// Runs while the browser extension holds its native messaging port open:
+/// Chrome starts this process when the extension connects and it exits when
+/// the browser closes the port.
+final class AppDelegate: NSObject, NSApplicationDelegate {
+    /// Every profile (and every browser) starts its own host. The one whose
+    /// window was focused last announces it; the others step aside.
+    private static let focusNotification = Notification.Name("io.github.miqqidami.touchtabs.focused")
+    private static let releaseNotification = Notification.Name("io.github.miqqidami.touchtabs.released")
 
-    init(client: BridgeClient) {
-        self.client = client
-    }
-}
-
-final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
-    static let repositoryURL = URL(string: "https://github.com/miqqidami/touchtabs")!
-
-    private let settings = Settings()
     private let touchBar = TouchBarController()
-    private lazy var server = BridgeServer { [settings] origin in settings.isAllowed(origin: origin) }
+    private let channel: NativeMessagingChannel?
     private let decoder = JSONDecoder()
-    private let demoMode: Bool
+    private let processID = String(ProcessInfo.processInfo.processIdentifier)
+    private var terminationSource: DispatchSourceSignal?
 
-    private var sessions: [ObjectIdentifier: BrowserSession] = [:]
-    private var shownSession: BrowserSession?
+    private var brand = "Chromium"
+    private var window: WindowState?
+    private var favicons: [String: NSImage] = [:]
+    private var alwaysShow = false
     private var hiddenByUser = false
-    private var serverError: String?
-    private var statusItem: NSStatusItem?
+    private var ownsFocus = false
+    /// Another host whose window was focused more recently.
+    private var yieldedTo: String?
 
-    init(demoMode: Bool) {
-        self.demoMode = demoMode
+    /// `channel` is nil in demo mode.
+    init(channel: NativeMessagingChannel?) {
+        self.channel = channel
     }
+
+    private var isDemo: Bool { channel == nil }
 
     func applicationDidFinishLaunching(_ notification: Notification) {
-        if let bundleID = Bundle.main.bundleIdentifier,
-           NSRunningApplication.runningApplications(withBundleIdentifier: bundleID).count > 1 {
-            NSLog("TouchTabs: already running")
-            NSApp.terminate(nil)
-            return
-        }
-
-        setUpStatusItem()
         guard SystemTouchBar.isAvailable else {
-            serverError = "This Mac's Touch Bar APIs are unavailable."
+            // Stay alive anyway: exiting would make the extension relaunch us.
+            NSLog("TouchTabs: this Mac's Touch Bar APIs are unavailable")
             return
         }
 
-        registerLoginItemOnFirstLaunch()
-        touchBar.keepsControlStrip = settings.keepControlStrip
         touchBar.install()
         touchBar.onTrayTap = { [weak self] in self?.toggleFromTray() }
         touchBar.onUserDismiss = { [weak self] in self?.hiddenByUser = true }
         let strip = touchBar.stripView
-        strip.onActivate = { [weak self] id in self?.shownSession?.client.send(["type": "activate", "tabId": id]) }
-        strip.onClose = { [weak self] id in self?.shownSession?.client.send(["type": "close", "tabId": id]) }
-        strip.onNewTab = { [weak self] in self?.shownSession?.client.send(["type": "newTab"]) }
-        strip.onToggleGroup = { [weak self] id in self?.shownSession?.client.send(["type": "toggleGroup", "groupId": id]) }
+        strip.onActivate = { [weak self] id in self?.channel?.send(["type": "activate", "tabId": id]) }
+        strip.onClose = { [weak self] id in self?.channel?.send(["type": "close", "tabId": id]) }
+        strip.onNewTab = { [weak self] in self?.channel?.send(["type": "newTab"]) }
+        strip.onToggleGroup = { [weak self] id in self?.channel?.send(["type": "toggleGroup", "groupId": id]) }
 
-        server.onConnect = { [weak self] client in
-            self?.sessions[ObjectIdentifier(client)] = BrowserSession(client: client)
+        if let channel {
+            channel.onMessage = { [weak self] data in self?.handle(data) }
+            channel.onClose = { NSApp.terminate(nil) }
+            channel.start()
+            channel.send(["type": "ready", "version": Bundle.main.infoDictionary?["CFBundleShortVersionString"] ?? "dev"])
         }
-        server.onDisconnect = { [weak self] client in
-            self?.sessions[ObjectIdentifier(client)] = nil
-            self?.refresh()
-        }
-        server.onMessage = { [weak self] client, data in self?.handle(data, from: client) }
-        server.onListenerError = { [weak self] error in self?.serverError = error }
-        if !demoMode { server.start() }
+
+        // Chrome stops the host with SIGTERM; exit through AppKit so the bar is cleaned up.
+        signal(SIGTERM, SIG_IGN)
+        let source = DispatchSource.makeSignalSource(signal: SIGTERM, queue: .main)
+        source.setEventHandler { NSApp.terminate(nil) }
+        source.resume()
+        terminationSource = source
 
         NSWorkspace.shared.notificationCenter.addObserver(
             self, selector: #selector(frontmostAppChanged),
             name: NSWorkspace.didActivateApplicationNotification, object: nil)
+        let distributed = DistributedNotificationCenter.default()
+        distributed.addObserver(self, selector: #selector(otherHostFocused(_:)), name: Self.focusNotification,
+                                object: nil, suspensionBehavior: .deliverImmediately)
+        distributed.addObserver(self, selector: #selector(otherHostReleased(_:)), name: Self.releaseNotification,
+                                object: nil, suspensionBehavior: .deliverImmediately)
         refresh()
     }
 
     func applicationWillTerminate(_ notification: Notification) {
         touchBar.uninstall()
+        post(Self.releaseNotification)
     }
 
     // MARK: - Messages
 
-    private func handle(_ data: Data, from client: BridgeClient) {
-        guard let session = sessions[ObjectIdentifier(client)],
-              let envelope = try? decoder.decode(Incoming.Envelope.self, from: data)
-        else { return }
-
+    private func handle(_ data: Data) {
+        guard let envelope = try? decoder.decode(Incoming.Envelope.self, from: data) else { return }
         switch envelope.type {
         case "hello":
-            session.brand = (try? decoder.decode(Incoming.Hello.self, from: data))?.browser ?? "Chromium"
+            brand = (try? decoder.decode(Incoming.Hello.self, from: data))?.browser ?? "Chromium"
+            refresh()
+        case "settings":
+            guard let settings = try? decoder.decode(Incoming.Settings.self, from: data) else { return }
+            alwaysShow = settings.alwaysShow
+            touchBar.keepsControlStrip = settings.keepControlStrip
+            refresh()
         case "state":
             do {
                 let message = try decoder.decode(Incoming.State.self, from: data)
-                session.window = message.window
-                if message.focused { session.lastFocused = Date() }
+                window = message.window
+                if message.focused { takeFocus() }
                 refresh()
             } catch {
                 NSLog("TouchTabs: bad state message: \(error)")
@@ -102,11 +103,37 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
             guard let message = try? decoder.decode(Incoming.Favicon.self, from: data),
                   let image = NSImage(dataURL: message.data)
             else { return }
-            session.favicons[message.key] = image
-            if session === shownSession { refresh() }
+            favicons[message.key] = image
+            refresh()
         default:
             break
         }
+    }
+
+    // MARK: - Coordinating with other hosts
+
+    private func takeFocus() {
+        yieldedTo = nil
+        guard !ownsFocus else { return }
+        ownsFocus = true
+        post(Self.focusNotification)
+    }
+
+    private func post(_ name: Notification.Name) {
+        DistributedNotificationCenter.default().postNotificationName(name, object: processID, userInfo: nil, deliverImmediately: true)
+    }
+
+    @objc private func otherHostFocused(_ notification: Notification) {
+        guard let sender = notification.object as? String, sender != processID else { return }
+        ownsFocus = false
+        yieldedTo = sender
+        refresh()
+    }
+
+    @objc private func otherHostReleased(_ notification: Notification) {
+        guard let sender = notification.object as? String, sender == yieldedTo else { return }
+        yieldedTo = nil
+        refresh()
     }
 
     // MARK: - Showing the strip
@@ -118,153 +145,24 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
 
     private func toggleFromTray() {
         hiddenByUser = touchBar.isPresented
-        if !hiddenByUser { shownSession?.client.send(["type": "sync"]) }
+        if !hiddenByUser { channel?.send(["type": "sync"]) }
         refresh()
-    }
-
-    /// The session to show while `bundleID` is frontmost: the most recently
-    /// focused window among extensions whose browser brand fits the app.
-    private func session(forFrontmost bundleID: String?) -> BrowserSession? {
-        let expected = Browsers.brand(for: bundleID)
-        return sessions.values
-            .filter { $0.window != nil }
-            .filter { expected == nil || $0.brand == expected || !Browsers.knownBrands.contains($0.brand) }
-            .max { $0.lastFocused < $1.lastFocused }
     }
 
     private func refresh() {
         let frontmost = NSWorkspace.shared.frontmostApplication?.bundleIdentifier
-        let browserIsFrontmost = Browsers.isBrowser(frontmost)
-        let wanted = demoMode || settings.alwaysShow || browserIsFrontmost
+        let expected = Browsers.brand(for: frontmost)
+        let isOurBrowser = Browsers.isBrowser(frontmost)
+            && (expected == nil || expected == brand || !Browsers.knownBrands.contains(brand))
+        let wanted = isDemo || ((alwaysShow || isOurBrowser) && yieldedTo == nil)
         touchBar.setTrayVisible(wanted)
 
-        let strip = touchBar.stripView
-        if demoMode {
-            strip.update(state: DemoData.window, favicons: DemoData.favicons)
-        } else {
-            shownSession = session(forFrontmost: frontmost)
-            strip.placeholder = sessions.isEmpty
-                ? "Install the TouchTabs extension in your browser to see your tabs here"
-                : "No browser window open"
-            strip.update(state: shownSession?.window, favicons: shownSession?.favicons ?? [:])
-        }
-
-        // With no extension connected, still show the setup hint; with an
-        // extension but no window, get out of the way.
-        let hasContent = demoMode || shownSession != nil || sessions.isEmpty
-        if wanted, hasContent, !hiddenByUser {
+        let state = isDemo ? DemoData.window : window
+        touchBar.stripView.update(state: state, favicons: isDemo ? DemoData.favicons : favicons)
+        if wanted, state != nil, !hiddenByUser {
             touchBar.present()
         } else {
             touchBar.hide()
         }
-    }
-
-    // MARK: - Menu bar
-
-    private func setUpStatusItem() {
-        let item = NSStatusBar.system.statusItem(withLength: NSStatusItem.squareLength)
-        item.button?.image = Artwork.tabGlyph(size: NSSize(width: 18, height: 13))
-        item.button?.toolTip = "TouchTabs"
-        let menu = NSMenu()
-        menu.delegate = self
-        item.menu = menu
-        statusItem = item
-    }
-
-    func menuNeedsUpdate(_ menu: NSMenu) {
-        menu.removeAllItems()
-
-        let status: String
-        if let serverError {
-            status = serverError
-        } else if demoMode {
-            status = "Demo mode"
-        } else if sessions.isEmpty {
-            status = "Waiting for the browser extension…"
-        } else {
-            let brands = Set(sessions.values.map(\.brand)).sorted().joined(separator: ", ")
-            status = "Connected: \(brands)"
-        }
-        let statusItem = NSMenuItem(title: status, action: nil, keyEquivalent: "")
-        statusItem.isEnabled = false
-        menu.addItem(statusItem)
-        menu.addItem(.separator())
-
-        let always = NSMenuItem(title: "Show Tabs Over All Apps", action: #selector(toggleAlwaysShow), keyEquivalent: "")
-        always.target = self
-        always.state = settings.alwaysShow ? .on : .off
-        menu.addItem(always)
-
-        let controlStrip = NSMenuItem(title: "Keep Control Strip Visible", action: #selector(toggleKeepControlStrip), keyEquivalent: "")
-        controlStrip.target = self
-        controlStrip.state = settings.keepControlStrip ? .on : .off
-        menu.addItem(controlStrip)
-
-        if #available(macOS 13.0, *) {
-            let login = NSMenuItem(title: "Launch at Login", action: #selector(toggleLaunchAtLogin), keyEquivalent: "")
-            login.target = self
-            login.state = SMAppService.mainApp.status == .enabled ? .on : .off
-            menu.addItem(login)
-        }
-        menu.addItem(.separator())
-
-        if Bundle.main.url(forResource: "Extension", withExtension: nil) != nil {
-            let reveal = NSMenuItem(title: "Show Browser Extension in Finder", action: #selector(revealExtension), keyEquivalent: "")
-            reveal.target = self
-            menu.addItem(reveal)
-        }
-        let site = NSMenuItem(title: "TouchTabs on GitHub", action: #selector(openRepository), keyEquivalent: "")
-        site.target = self
-        menu.addItem(site)
-        menu.addItem(.separator())
-        menu.addItem(NSMenuItem(title: "Quit TouchTabs", action: #selector(NSApplication.terminate(_:)), keyEquivalent: "q"))
-    }
-
-    @objc private func toggleAlwaysShow() {
-        settings.alwaysShow.toggle()
-        refresh()
-    }
-
-    @objc private func toggleKeepControlStrip() {
-        settings.keepControlStrip.toggle()
-        touchBar.keepsControlStrip = settings.keepControlStrip
-        refresh()
-    }
-
-    /// Start with the Mac so the tabs are there whenever Chrome is. Only done
-    /// once, and only from an installed .app, so the menu toggle stays in charge.
-    private func registerLoginItemOnFirstLaunch() {
-        guard #available(macOS 13.0, *), !demoMode, !settings.didSetUpLoginItem,
-              Bundle.main.bundleURL.pathExtension == "app"
-        else { return }
-        do {
-            try SMAppService.mainApp.register()
-            settings.didSetUpLoginItem = true
-        } catch {
-            NSLog("TouchTabs: could not add login item: \(error)")
-        }
-    }
-
-    @objc private func toggleLaunchAtLogin() {
-        guard #available(macOS 13.0, *) else { return }
-        do {
-            if SMAppService.mainApp.status == .enabled {
-                try SMAppService.mainApp.unregister()
-            } else {
-                try SMAppService.mainApp.register()
-            }
-        } catch {
-            let alert = NSAlert(error: error)
-            alert.runModal()
-        }
-    }
-
-    @objc private func revealExtension() {
-        guard let url = Bundle.main.url(forResource: "Extension", withExtension: nil) else { return }
-        NSWorkspace.shared.activateFileViewerSelecting([url])
-    }
-
-    @objc private func openRepository() {
-        NSWorkspace.shared.open(Self.repositoryURL)
     }
 }

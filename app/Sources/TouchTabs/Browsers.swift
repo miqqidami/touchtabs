@@ -36,39 +36,3 @@ enum Browsers {
         return brand
     }
 }
-
-/// User preferences (`defaults write io.github.miqqidami.touchtabs <key> …`).
-final class Settings {
-    /// ID of the extension in `extension/`, pinned by the `key` in its manifest.
-    static let bundledExtensionID = "dogooidoflnmlpknaaiaeblffcechdji"
-
-    private let defaults = UserDefaults.standard
-
-    /// Show the tab strip over every app, not only while a browser is frontmost.
-    var alwaysShow: Bool {
-        get { defaults.bool(forKey: "AlwaysShow") }
-        set { defaults.set(newValue, forKey: "AlwaysShow") }
-    }
-
-    /// Keep brightness/volume visible next to the tabs (adds a system close box).
-    var keepControlStrip: Bool {
-        get { defaults.bool(forKey: "KeepControlStrip") }
-        set { defaults.set(newValue, forKey: "KeepControlStrip") }
-    }
-
-    /// Set once the app has registered itself as a login item, so turning
-    /// Launch at Login off later sticks.
-    var didSetUpLoginItem: Bool {
-        get { defaults.bool(forKey: "DidSetUpLoginItem") }
-        set { defaults.set(newValue, forKey: "DidSetUpLoginItem") }
-    }
-
-    func isAllowed(origin: String?) -> Bool {
-        let prefix = "chrome-extension://"
-        guard let origin, origin.hasPrefix(prefix) else { return false }
-        if defaults.bool(forKey: "AllowAnyExtension") { return true }
-        let id = String(origin.dropFirst(prefix.count))
-        let extra = defaults.stringArray(forKey: "AllowedExtensionIDs") ?? []
-        return id == Self.bundledExtensionID || extra.contains(id)
-    }
-}

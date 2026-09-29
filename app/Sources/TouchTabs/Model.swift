@@ -45,6 +45,11 @@ enum Incoming {
         let window: WindowState?
     }
 
+    struct Settings: Decodable {
+        let keepControlStrip: Bool
+        let alwaysShow: Bool
+    }
+
     struct Favicon: Decodable {
         let key: String
         let data: String

@@ -1,14 +1,16 @@
-// TouchTabs: streams the focused window's tab strip to the TouchTabs macOS app
-// over a localhost WebSocket and carries out the taps it sends back.
-// The wire format is documented in PROTOCOL.md.
+// TouchTabs: streams the focused window's tab strip to the TouchTabs helper
+// (a native messaging host that draws it on the Touch Bar) and carries out the
+// taps it sends back. Chrome starts the helper when we connect and stops it
+// when we disconnect. The message format is documented in PROTOCOL.md.
 
-const APP_URL = 'ws://127.0.0.1:47823';
-const PROTOCOL_VERSION = 1;
-const KEEPALIVE_MS = 20_000; // < 30s keeps the MV3 service worker alive
+const HOST = 'io.github.miqqidami.touchtabs';
+const PROTOCOL_VERSION = 2;
 const FAVICON_SIZE = 32;
+const DEFAULT_SETTINGS = { keepControlStrip: false, alwaysShow: false };
 
-let socket = null;
-let keepAliveTimer = null;
+let port = null;
+let hostReady = false;
+let lastError = null;
 let retryDelay = 1000;
 let retryTimer = null;
 
@@ -16,44 +18,54 @@ let retryTimer = null;
 // Connection
 
 function isOpen() {
-  return socket?.readyState === WebSocket.OPEN;
+  return port !== null;
 }
 
 function connect() {
-  if (socket && (socket.readyState === WebSocket.OPEN || socket.readyState === WebSocket.CONNECTING)) return;
+  if (port) return;
   clearTimeout(retryTimer);
-  const ws = new WebSocket(APP_URL);
-  socket = ws;
+  const p = chrome.runtime.connectNative(HOST);
+  port = p;
+  hostReady = false;
+  sentFavicons.clear();
 
-  ws.onopen = () => {
-    retryDelay = 1000;
-    sentFavicons.clear();
-    send({ type: 'hello', protocol: PROTOCOL_VERSION, browser: browserBrand(), version: chrome.runtime.getManifest().version });
-    scheduleSync(true);
-    keepAliveTimer = setInterval(() => send({ type: 'ping' }), KEEPALIVE_MS);
-  };
-  ws.onmessage = (event) => {
-    try {
-      handleCommand(JSON.parse(event.data));
-    } catch (error) {
-      console.warn('TouchTabs: bad message', error);
+  p.onMessage.addListener((message) => {
+    if (message?.type === 'ready') {
+      hostReady = true;
+      lastError = null;
+      retryDelay = 1000;
+      return;
     }
-  };
-  ws.onclose = () => {
-    clearInterval(keepAliveTimer);
-    if (socket === ws) socket = null;
-    // The app isn't running (or just quit): retry with backoff while we're
-    // awake; the alarm below covers us after the service worker sleeps.
+    handleCommand(message);
+  });
+  p.onDisconnect.addListener(() => {
+    lastError = chrome.runtime.lastError?.message ?? 'Disconnected';
+    if (port === p) port = null;
+    hostReady = false;
+    // Helper not installed, or it quit: retry with backoff while we're awake;
+    // the alarm below covers us after the service worker sleeps.
     retryTimer = setTimeout(connect, retryDelay);
     retryDelay = Math.min(retryDelay * 2, 30_000);
-  };
-  ws.onerror = () => {}; // onclose follows
+  });
+
+  send({ type: 'hello', protocol: PROTOCOL_VERSION, browser: browserBrand(), version: chrome.runtime.getManifest().version });
+  sendSettings();
+  scheduleSync(true);
 }
 
 function send(message) {
-  if (!isOpen()) return false;
-  socket.send(JSON.stringify(message));
-  return true;
+  if (!port) return false;
+  try {
+    port.postMessage(message);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+async function sendSettings() {
+  const settings = await chrome.storage.local.get(DEFAULT_SETTINGS);
+  send({ type: 'settings', ...settings });
 }
 
 function browserBrand() {
@@ -253,15 +265,19 @@ chrome.windows.onFocusChanged.addListener((windowId) => {
   if (windowId !== chrome.windows.WINDOW_ID_NONE) scheduleSync(true);
 });
 
+chrome.storage.onChanged.addListener((_changes, area) => {
+  if (area === 'local') sendSettings();
+});
+
 // Popup status.
 chrome.runtime.onMessage.addListener((message, _sender, reply) => {
   if (message?.type === 'status') {
     if (!isOpen()) connect();
-    reply({ connected: isOpen() });
+    reply({ connected: hostReady, error: hostReady ? null : lastError });
   }
 });
 
-// Wake up periodically to reconnect if the app was started after the browser.
+// Wake up periodically to reconnect if the helper was installed after the browser started.
 chrome.alarms.create('reconnect', { periodInMinutes: 0.5 });
 chrome.alarms.onAlarm.addListener((alarm) => {
   if (alarm.name === 'reconnect') connect();

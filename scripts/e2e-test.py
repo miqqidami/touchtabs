@@ -1,11 +1,10 @@
 #!/usr/bin/env python3
 """End-to-end check: loads the extension into a throwaway headless Chrome
-profile, opens a few sites, drives the extension's command handler and
-screenshots the Touch Bar. Start TouchTabs.app first, with
-`defaults write io.github.miqqidami.touchtabs AlwaysShow -bool true` so the
-strip shows while Chrome runs headless.
+profile, registers build/TouchTabs.app as that profile's native messaging
+host, opens a few sites, drives the extension's command handler and
+screenshots the Touch Bar. Run `make app` first.
 """
-import fcntl, json, os, subprocess, sys, time, socket, tempfile
+import fcntl, json, os, subprocess, sys, time, tempfile
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 TMP = tempfile.mkdtemp(prefix='touchtabs-e2e-')
 CHROME = '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome'
@@ -17,6 +16,7 @@ r1, w1 = map(high, os.pipe())  # we write -> chrome reads fd3
 r2, w2 = map(high, os.pipe())  # chrome writes fd4 -> we read
 for fd in (r1, w1, r2, w2): os.set_inheritable(fd, True)
 profile = tempfile.mkdtemp(dir=TMP)
+subprocess.run([ROOT + '/build/TouchTabs.app/Contents/MacOS/TouchTabs', '--install', '--user-data-dir', profile], check=True)
 def child():
     os.dup2(r1, 3); os.dup2(w2, 4); os.close(w1); os.close(r2)
 proc = subprocess.Popen([CHROME, '--headless=new', f'--user-data-dir={profile}', '--remote-debugging-pipe',
@@ -42,15 +42,6 @@ def cdp(method, params=None, session=None):
             if 'error' in r: raise RuntimeError(f'{method}: {r["error"]}')
             return r['result']
 
-def origin_test(origin):
-    s = socket.create_connection(('127.0.0.1', 47823))
-    s.send((f'GET / HTTP/1.1\r\nHost: 127.0.0.1:47823\r\nUpgrade: websocket\r\nConnection: Upgrade\r\n'
-            f'Sec-WebSocket-Key: dGhlIHNhbXBsZSBub25jZQ==\r\nSec-WebSocket-Version: 13\r\nOrigin: {origin}\r\n\r\n').encode())
-    s.settimeout(2)
-    try: resp = s.recv(200).decode(errors='replace').split('\r\n')[0]
-    except Exception as e: resp = f'<{e}>'
-    s.close(); return resp
-
 try:
     ext = cdp('Extensions.loadUnpacked', {'path': ROOT + '/extension'})['id']
     print('extension id', ext)
@@ -62,7 +53,9 @@ try:
     def ev(expr):
         r = cdp('Runtime.evaluate', {'expression': expr, 'awaitPromise': True, 'returnByValue': True}, sess)
         return r['result'].get('value', r)
-    print('connected:', ev('isOpen()'))
+    ev('chrome.storage.local.set({alwaysShow: true})')  # headless Chrome is never frontmost
+    time.sleep(1)
+    print('helper ready:', ev('hostReady'))
     tabs = ev('chrome.tabs.query({}).then(ts => ts.map(t => ({id: t.id, title: t.title, active: t.active, fav: !!t.favIconUrl})))')
     print('tabs:', json.dumps(tabs))
     ids = [t['id'] for t in tabs]
@@ -78,8 +71,6 @@ try:
     time.sleep(1.5)
     print('tabs after close+new:', ev('chrome.tabs.query({}).then(ts => ts.map(t => t.title))'))
     subprocess.run(['screencapture', '-b', TMP + '/e2e2.png'])
-    print('origin evil:', origin_test('https://evil.example'))
-    print('origin other ext:', origin_test('chrome-extension://aaaabbbbccccddddeeeeffffgggghhhh'))
 finally:
     proc.terminate(); proc.wait(10)
     print('Touch Bar screenshots:', TMP + '/e2e1.png', TMP + '/e2e2.png')

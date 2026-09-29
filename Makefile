@@ -3,16 +3,17 @@
 app:
 	./scripts/build-app.sh
 
+# Opens the app from Finder: it registers itself with your browsers.
 run: app
 	open build/TouchTabs.app
 
-# Installs to /Applications and starts it; it adds itself as a login item on
-# first launch so it's always there when Chrome is.
+# Copies the app to /Applications and registers it as the browsers' native
+# messaging host. The extension then starts it whenever the browser runs.
 install: app
-	-osascript -e 'quit app "TouchTabs"' 2>/dev/null; sleep 1
+	-pkill -x TouchTabs; sleep 1
 	rm -rf /Applications/TouchTabs.app
 	cp -R build/TouchTabs.app /Applications/
-	open /Applications/TouchTabs.app
+	/Applications/TouchTabs.app/Contents/MacOS/TouchTabs --install
 
 # Shows sample tabs on the Touch Bar without a browser.
 demo:
