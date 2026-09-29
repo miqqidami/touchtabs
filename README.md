@@ -15,10 +15,11 @@ underlines, audio indicators and loading spinners.
 - **Tap a group chip** to collapse or expand the group
 - **Swipe** to scroll when there are more tabs than fit
 
-It shows up whenever a Chromium browser is frontmost and gets out of the way when
-you switch apps. The Control Strip (brightness, volume, …) stays where it is.
+It shows up whenever a Chromium browser is frontmost, using the whole Touch
+Bar, and gets out of the way when you switch apps. It starts at login, so the
+tabs are there whenever Chrome is.
 
-Here it is on real hardware, showing a live Chrome window:
+Here it is on real hardware:
 
 ![Real Touch Bar screenshot](docs/touchbar.png)
 
@@ -59,12 +60,12 @@ another Chromium browser: Edge, Brave, Opera, Vivaldi, Arc).
 ```sh
 git clone https://github.com/miqqidami/touchtabs.git
 cd touchtabs
-make run            # builds build/TouchTabs.app (universal) and opens it
+make install        # builds TouchTabs.app (universal), copies it to /Applications, starts it
 ```
 
-This needs the Xcode command line tools (Swift 5.9+). Copy
-`build/TouchTabs.app` to `/Applications` and choose **Launch at Login** from its
-menu bar icon if you want it to start automatically.
+This needs the Xcode command line tools (Swift 5.9+). On first launch the app
+adds itself as a login item (macOS 13+), so it's always running. Turn that off
+with **Launch at Login** in its menu bar menu.
 
 > The app is ad-hoc signed. If you downloaded a build instead of compiling it,
 > right-click it → **Open** the first time.
@@ -80,9 +81,11 @@ The extension's popup shows whether it's connected to the app.
 
 ## Using it
 
-- The TouchTabs button in the Control Strip toggles between TouchTabs and
-  Chrome's own Touch Bar (back/forward, address bar). The **✕** on the far left
-  also hides it until you next switch apps.
+- While a browser is frontmost, TouchTabs takes over the whole Touch Bar,
+  including the Control Strip. To keep brightness and volume next to your tabs,
+  turn on **Keep Control Strip Visible** in the menu bar menu. macOS then adds a
+  ✕ on the left, and the TouchTabs button in the Control Strip toggles back to
+  Chrome's own Touch Bar.
 - **Show Tabs Over All Apps** (menu bar) keeps the strip on the Touch Bar
   everywhere, showing your most recently used browser window.
 - With several browsers or profiles running, TouchTabs follows whichever
@@ -95,6 +98,7 @@ Settings live in the `io.github.miqqidami.touchtabs` defaults domain:
 | Key | Type | Purpose |
 | --- | --- | --- |
 | `AlwaysShow` | bool | Same as **Show Tabs Over All Apps** |
+| `KeepControlStrip` | bool | Same as **Keep Control Strip Visible** |
 | `AllowedExtensionIDs` | array | Extra extension IDs allowed to connect (for example, a Web Store build of the extension) |
 | `ExtraBrowserBundleIDs` | array | More app bundle IDs to treat as browsers |
 | `AllowAnyExtension` | bool | Accept any `chrome-extension://` origin (development only) |

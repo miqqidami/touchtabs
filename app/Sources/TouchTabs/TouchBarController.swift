@@ -10,6 +10,15 @@ final class TouchBarController: NSObject, NSTouchBarDelegate {
     var onTrayTap: (() -> Void)?
     /// The user closed the bar with the system close box.
     var onUserDismiss: (() -> Void)?
+    /// Leave the Control Strip visible. The system then adds a close box.
+    var keepsControlStrip = false {
+        didSet {
+            guard keepsControlStrip != oldValue, isPresented else { return }
+            SystemTouchBar.dismiss(touchBar)
+            isPresented = false
+            present()
+        }
+    }
     private(set) var isPresented = false
     private var isTrayVisible = false
 
@@ -32,7 +41,7 @@ final class TouchBarController: NSObject, NSTouchBarDelegate {
             // If we still think it's up, the system dismissed it, not us.
             guard let self, self.isPresented else { return }
             self.isPresented = false
-            self.onUserDismiss?()
+            if self.keepsControlStrip { self.onUserDismiss?() }
         }
         SystemTouchBar.setShowsCloseBoxWhenFrontmost(false)
         SystemTouchBar.addSystemTrayItem(trayItem)
@@ -54,7 +63,7 @@ final class TouchBarController: NSObject, NSTouchBarDelegate {
     func present() {
         guard !isPresented else { return }
         isPresented = true
-        SystemTouchBar.present(touchBar, trayIdentifier: Self.trayIdentifier)
+        SystemTouchBar.present(touchBar, trayIdentifier: Self.trayIdentifier, coverControlStrip: !keepsControlStrip)
     }
 
     func hide() {

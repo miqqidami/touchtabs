@@ -31,7 +31,19 @@ enum SystemTouchBar {
         send(NSTouchBarItem.self, "removeSystemTrayItem:", item)
     }
 
-    static func present(_ touchBar: NSTouchBar, trayIdentifier: NSTouchBarItem.Identifier) {
+    /// Presents `touchBar` over the frontmost app's bar. Covering the Control
+    /// Strip gives the bar the full width and, as a side effect, is the only
+    /// way to get rid of the system close box on the left.
+    static func present(_ touchBar: NSTouchBar, trayIdentifier: NSTouchBarItem.Identifier, coverControlStrip: Bool) {
+        if coverControlStrip {
+            let selector = NSSelectorFromString("presentSystemModalTouchBar:placement:systemTrayItemIdentifier:")
+            if let method = class_getClassMethod(NSTouchBar.self, selector) {
+                typealias Fn = @convention(c) (AnyObject, Selector, AnyObject, Int64, AnyObject) -> Void
+                unsafeBitCast(method_getImplementation(method), to: Fn.self)(
+                    NSTouchBar.self, selector, touchBar, 1, trayIdentifier.rawValue as NSString)
+                return
+            }
+        }
         send(NSTouchBar.self, "presentSystemModalTouchBar:systemTrayItemIdentifier:", touchBar, trayIdentifier.rawValue as NSString)
     }
 

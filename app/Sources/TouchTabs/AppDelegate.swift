@@ -47,6 +47,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
             return
         }
 
+        registerLoginItemOnFirstLaunch()
+        touchBar.keepsControlStrip = settings.keepControlStrip
         touchBar.install()
         touchBar.onTrayTap = { [weak self] in self?.toggleFromTray() }
         touchBar.onUserDismiss = { [weak self] in self?.hiddenByUser = true }
@@ -193,6 +195,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         always.state = settings.alwaysShow ? .on : .off
         menu.addItem(always)
 
+        let controlStrip = NSMenuItem(title: "Keep Control Strip Visible", action: #selector(toggleKeepControlStrip), keyEquivalent: "")
+        controlStrip.target = self
+        controlStrip.state = settings.keepControlStrip ? .on : .off
+        menu.addItem(controlStrip)
+
         if #available(macOS 13.0, *) {
             let login = NSMenuItem(title: "Launch at Login", action: #selector(toggleLaunchAtLogin), keyEquivalent: "")
             login.target = self
@@ -216,6 +223,26 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     @objc private func toggleAlwaysShow() {
         settings.alwaysShow.toggle()
         refresh()
+    }
+
+    @objc private func toggleKeepControlStrip() {
+        settings.keepControlStrip.toggle()
+        touchBar.keepsControlStrip = settings.keepControlStrip
+        refresh()
+    }
+
+    /// Start with the Mac so the tabs are there whenever Chrome is. Only done
+    /// once, and only from an installed .app, so the menu toggle stays in charge.
+    private func registerLoginItemOnFirstLaunch() {
+        guard #available(macOS 13.0, *), !demoMode, !settings.didSetUpLoginItem,
+              Bundle.main.bundleURL.pathExtension == "app"
+        else { return }
+        do {
+            try SMAppService.mainApp.register()
+            settings.didSetUpLoginItem = true
+        } catch {
+            NSLog("TouchTabs: could not add login item: \(error)")
+        }
     }
 
     @objc private func toggleLaunchAtLogin() {

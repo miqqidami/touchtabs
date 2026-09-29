@@ -50,6 +50,19 @@ final class Settings {
         set { defaults.set(newValue, forKey: "AlwaysShow") }
     }
 
+    /// Keep brightness/volume visible next to the tabs (adds a system close box).
+    var keepControlStrip: Bool {
+        get { defaults.bool(forKey: "KeepControlStrip") }
+        set { defaults.set(newValue, forKey: "KeepControlStrip") }
+    }
+
+    /// Set once the app has registered itself as a login item, so turning
+    /// Launch at Login off later sticks.
+    var didSetUpLoginItem: Bool {
+        get { defaults.bool(forKey: "DidSetUpLoginItem") }
+        set { defaults.set(newValue, forKey: "DidSetUpLoginItem") }
+    }
+
     func isAllowed(origin: String?) -> Bool {
         let prefix = "chrome-extension://"
         guard let origin, origin.hasPrefix(prefix) else { return false }

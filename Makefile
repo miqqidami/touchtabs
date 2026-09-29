@@ -1,10 +1,18 @@
-.PHONY: app run demo preview icons extension-zip clean
+.PHONY: app install run demo preview icons extension-zip clean
 
 app:
 	./scripts/build-app.sh
 
 run: app
 	open build/TouchTabs.app
+
+# Installs to /Applications and starts it; it adds itself as a login item on
+# first launch so it's always there when Chrome is.
+install: app
+	-osascript -e 'quit app "TouchTabs"' 2>/dev/null; sleep 1
+	rm -rf /Applications/TouchTabs.app
+	cp -R build/TouchTabs.app /Applications/
+	open /Applications/TouchTabs.app
 
 # Shows sample tabs on the Touch Bar without a browser.
 demo:
